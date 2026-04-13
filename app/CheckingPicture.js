@@ -120,7 +120,7 @@ export default function CheckingPicture({ imageUri, goBack }) {
       formData.append("longitude", location.longitude.toString());
 
       formData.append("file", {
-        uri: imageUri,
+        uri: imageUri, 
         name: `post_${Date.now()}.jpg`,
         type: "image/jpeg",
       });

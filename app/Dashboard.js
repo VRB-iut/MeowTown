@@ -16,7 +16,46 @@ import COLOR from '../global_vars/COLOR';
 import IP from '../global_vars/IP';
 
 
-// 🔥 COMPONENT POST (IMPORTANT)
+const LeaderBoradScreen = ({ users, theme }) => {
+  if (!users || users.length === 0) return null;
+
+  return (
+    <View style={{ padding: 15, backgroundColor: theme.background }}>
+      <FlatList
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        data={users}
+        keyExtractor={(item) => item.id?.toString() || item.userId?.toString()}
+        renderItem={({ item }) => (
+          <View style={{ marginRight: 25, alignItems: 'center' }}>
+            <View style={styles.avatarContainer}>
+              <Image
+                source={item.profilePictureUrl ? { uri: `http://${IP}:3000/${item.profilePictureUrl}` } : require('../assets/defaultProfilePicture.png')}
+                style={styles.profileTopPicture}
+              />
+              
+              <View style={styles.badgeWrapper}>
+                <Image 
+                  source={require('../assets/catPoints.png')} 
+                  style={styles.catPointsIcon} 
+                />
+                <Text style={[styles.catPointsText, { color: 'black' }]}>
+                  {item.catPoints || 0}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={{ color: theme.text, fontSize: 14, marginTop: 5, fontWeight: '500' }}>
+              {item.username}
+            </Text>
+          </View> 
+        )}
+      />
+      <View style={[styles.separatorHeader, { marginTop: 15, backgroundColor: theme.primary, borderColor: theme.primary }]} />
+    </View>
+  );
+}
+
 const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId }) => {
   const router = useRouter();
 
@@ -109,9 +148,26 @@ const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId })
 
 const HomeScreen = ({ theme }) => {
   const [dataPosts, setDataPosts] = useState([]);
+  const [leaderboardUsers, setLeaderboardUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addressCache, setAddressCache] = useState({});
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const response = await fetch(`http://${IP}:3000/leaderboard`);
+      const data = await response.json();
+
+      if (data?.success && Array.isArray(data.users)) {
+        setLeaderboardUsers(data.users);
+      } else {
+        setLeaderboardUsers([]);
+      }
+    } catch (err) {
+      console.log("Eroare la fetch leaderboard:", err);
+      setLeaderboardUsers([]);
+    }
+  }, []);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -141,7 +197,8 @@ const HomeScreen = ({ theme }) => {
   useFocusEffect(
     useCallback(() => {
       fetchPosts();
-    }, [fetchPosts])
+      fetchLeaderboard();
+    }, [fetchLeaderboard, fetchPosts])
   );
 
   const getCountry = async (lat, lon, postId) => {
@@ -210,12 +267,19 @@ const HomeScreen = ({ theme }) => {
       <FlatList
         data={dataPosts}
         keyExtractor={(item) => item.id.toString()}
-        onRefresh={fetchPosts}
+        onRefresh={async () => {
+          await Promise.all([fetchPosts(), fetchLeaderboard()]);
+        }}
         refreshing={loading}
         ListFooterComponent={
           <Text style={{ color: theme.gray, fontSize: 16, alignSelf: 'center', margin: 10 }}>I think you scrolled too much today!</Text>
         }
-        ListHeaderComponent={<View style={[styles.Header, { borderColor: theme.secondary }]} />}
+        ListHeaderComponent={
+          <View>
+            <LeaderBoradScreen users={leaderboardUsers} theme={theme} />
+            <View style={[styles.Header, { borderColor: theme.secondary }]} />
+          </View>
+        }
         renderItem={({ item }) => (
           <PostItem
             item={item}
@@ -396,5 +460,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     width: '95%',
     alignSelf: 'center',
-  }
+  },
+  avatarContainer: {
+    width: 75,
+    height: 75,
+    position: 'relative'
+  },
+  profileTopPicture: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    borderWidth: 2,
+    borderColor: '#ddd',
+  },
+  badgeWrapper: {
+    position: 'absolute',
+    bottom: -5,
+    right: -10,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  catPointsIcon: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  catPointsText: {
+    color: 'white',
+    top: 2,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    textShadowColor: '#2efffc',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 1,
+  },
 });

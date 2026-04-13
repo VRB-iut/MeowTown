@@ -176,7 +176,7 @@ export default function RandomProfile() {
       </View>
 
       <View style={[styles.divider, { borderBottomColor: theme.secondary }]} />
-
+ 
       <FlatList
         data={userData?.posts}
         keyExtractor={(item) => item.id.toString()}

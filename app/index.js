@@ -42,7 +42,7 @@ export default function App() {
     const userId = await AsyncStorage.getItem('userId');
     if (!userId || userId === "null") {
       setIsLoggedIn(false);
-    } else {
+    } else { 
       setIsLoggedIn(true);
     }
   };

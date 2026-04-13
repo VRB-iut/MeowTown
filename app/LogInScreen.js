@@ -51,7 +51,7 @@ export default function LoginScreen() {
     }
   };
 
-  const handleRegister = async () => {
+  const handleRegister = async () => { 
     console.log(
       "Attempting to register with: ",
       username,

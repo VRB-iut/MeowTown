@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   gridImageContainer: {
     width: '33.33%',
     aspectRatio: 1,
-    borderWidth: 1,
+    borderWidth: 1, 
     borderColor: 'transparent',
   },
   gridImage: {

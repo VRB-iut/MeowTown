@@ -10,7 +10,7 @@ export default function RootLayout() {
         screenOptions={{
           // Aceasta este linia magică:
           contentStyle: { backgroundColor: '#000' }, 
-          headerShown: false,
+          headerShown: false, 
         }}
       />
     </View>

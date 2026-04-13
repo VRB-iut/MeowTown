@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import COLOR from '../global_vars/COLOR';
 import IP from '../global_vars/IP';
-
+ 
 
 
 export default function SettingsScreen() {

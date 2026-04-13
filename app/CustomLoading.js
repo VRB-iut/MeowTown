@@ -27,7 +27,7 @@ const CustomLoading = () => {
     <View style={styles.container}>
       <Animated.Image
         source={require('../assets/loading.png')}
-        style={[
+        style={[ 
           styles.image,
           { transform: [{ rotate: rotation }] }
         ]}

@@ -27,7 +27,7 @@ export default function TakePicture({ navigation }) {
 
   const toggleDarkMode = async () => {
     try {
-      const id = await AsyncStorage.getItem("userId");
+      const id = await AsyncStorage.getItem("userId"); 
       if (!id) {
         router.replace("/LogInScreen");
         return;
