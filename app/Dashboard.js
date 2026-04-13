@@ -224,7 +224,6 @@ const HomeScreen = ({ theme }) => {
     }
   };
 
-  // În Dashboard.js (HomeScreen)
   const handleLike = async (postId) => {
     try {
       const userId = await AsyncStorage.getItem('userId');
@@ -442,9 +441,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   postImage: {
-    width: '99%',
+    width: '95%',
     aspectRatio: 1,
     alignSelf: 'center',
+    borderRadius: 20,
   },
   postOptions: {
     marginLeft: '1%',
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'absolute',
-  },
+  }, 
   catPointsText: {
     color: 'white',
     top: 2,

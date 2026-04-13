@@ -126,7 +126,6 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 1,
   },
-  // Aceasta este secțiunea care pune poza și punctele pe același rând
   ProfileInfo: {
     position: 'relative',
     flexDirection: 'row',
@@ -144,7 +143,6 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: '#eee',
   },
-  // Containerul pentru puncte (stă în dreapta pozei)
   PointsContainer: {
     position: 'absolute',
     right: '15%',
@@ -156,7 +154,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginVertical: 2,        // Spațiu mic între rândurile de puncte
+    marginVertical: 2, 
   },
   username: {
     fontSize: 22,
@@ -181,6 +179,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     borderWidth: 1,
+    borderRadius: 20,
   },
   emptyListText: {
     textAlign: 'center',
