@@ -1,16 +1,17 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, Image, FlatList, StyleSheet, TouchableOpacity, Animated, PanResponder } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCallback, useState } from 'react';
+import { View, Text, Image, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import BackButtonPossition from './backButton';
 import CustomLoading from './CustomLoading';
 import COLOR from '../global_vars/COLOR';
 import IP from '../global_vars/IP';
 
 export default function RandomProfile() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [darkModePressed, setDarkModePressed] = useState(false);
 
@@ -77,81 +78,13 @@ export default function RandomProfile() {
 
 
   const theme = darkModePressed ? COLOR.dark : COLOR.light;
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-
-  const sliderWidth = 180;
-  const knobSize = 47;
-  const maxSlide = sliderWidth - knobSize - 4;
-  const slideX = useRef(new Animated.Value(0)).current;
-
-  const resetSlider = useCallback(() => {
-    Animated.spring(slideX, {
-      toValue: 0,
-      useNativeDriver: true,
-      speed: 18,
-      bounciness: 8,
-    }).start();
-  }, [slideX]);
-
-  const triggerBack = useCallback(() => {
-    router.back();
-    slideX.setValue(0);
-  }, [router, slideX]);
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          gestureState.dx < -3 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
-        onPanResponderMove: (_, gestureState) => {
-          const clampedX = Math.max(-maxSlide, Math.min(gestureState.dx, 0));
-          slideX.setValue(clampedX);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dx <= -maxSlide * 0.7) {
-            triggerBack();
-          } else {
-            resetSlider();
-          }
-        },
-        onPanResponderTerminate: resetSlider,
-      }),
-    [maxSlide, resetSlider, slideX, triggerBack]
-  );
 
 
   if (loading) return <CustomLoading />;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      
-      <View
-        style={[
-          styles.slideBackContainer,
-          {
-            bottom: '12.5%',
-            right: '0%',
-            borderColor: theme.secondary,
-            backgroundColor: theme.background,
-          },
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.slideKnob,
-            {
-              width: knobSize * 4,
-              height: knobSize,
-              backgroundColor: '#ff3232',
-              transform: [{ translateX: slideX }],
-            },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          <Ionicons style={{ marginLeft: 5 }} name="arrow-back" size={24} color={theme.background} />
-        </Animated.View>
-      </View>
+      <BackButtonPossition />
 
       <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Text style={[styles.username, { color: theme.primary, borderColor: theme.primary }]}>{userData?.username}</Text>
@@ -182,7 +115,17 @@ export default function RandomProfile() {
         keyExtractor={(item) => item.id.toString()}
         numColumns={3}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.gridImageContainer}>
+          <TouchableOpacity
+            style={styles.gridImageContainer}
+            activeOpacity={0.85}
+            onPress={() => router.push({
+              pathname: '/RandomPicture',
+              params: {
+                userId: userData.id.toString(),
+                postId: item.id.toString(),
+              },
+            })}
+          >
             <Image source={{ uri: `http://${IP}:3000/${item.imageUrl}` }} style={styles.gridImage} />
           </TouchableOpacity>
         )}
@@ -269,22 +212,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 24,
     fontSize: 16,
-  },
-  slideBackContainer: {
-    position: 'absolute',
-    width: 180,
-    height: 66,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  slideKnob: {
-    position: 'absolute',
-    right: -47 * 3,
-    borderWidth: 3,
-    borderTopLeftRadius: 21,
-    borderBottomLeftRadius: 21,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
   },
 });

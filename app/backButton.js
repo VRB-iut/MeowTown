@@ -129,7 +129,7 @@ export default function BackButton({
         ]}
         onPress={triggerBack}
       >
-        <IonIcons name="chevron-back" size={24} color={iconColor} />
+        <IonIcons name="chevron-back" size={30} color={theme.primary} />
       </TouchableOpacity>
     );
   }

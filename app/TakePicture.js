@@ -54,12 +54,11 @@ export default function TakePicture({ navigation }) {
     if (cameraRef.current) {
       try {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 1, // Reducem puțin calitatea pentru viteză mai mare la upload
+          quality: 1,
           skipProcessing: false,
           shutterSound: false,
         });
-        
-        // FOARTE IMPORTANT: Verificăm dacă avem uri
+
         if (photo && photo.uri) {
           setPhotoUri(photo.uri);
           setScreen('checking');

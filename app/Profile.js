@@ -31,7 +31,6 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Modificăm aici pentru a folosi POST și a trimite body-ul
       const response = await fetch(`http://${IP}:3000/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,11 +65,10 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* 1. Secțiunea Header (Datele din User) */}
       <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Text style={[styles.username, { color: theme.primary, borderColor: theme.primary }]}>  {userData?.username}  </Text>
         <View style={styles.ProfileInfo}>
-          <View style={{backgroundColor: theme.primary, width: 100, height: 100, position: 'absolute', left: '5%'}}></View>
+          <View style={{backgroundColor: theme.debugging, width: 100, height: 100, position: 'absolute', left: '5%'}}></View>
           <Image 
             source={userData?.profilePictureUrl ? { uri: userData.profilePictureUrl } : require('../assets/defaultProfilePicture.png')}
             style={styles.profilePic} 
@@ -91,13 +89,22 @@ export default function ProfileScreen() {
 
       <View style={[styles.divider, { borderBottomColor: theme.secondary }]} />
 
-      {/* 2. Secțiunea Grid (Datele din Post) */}
       <FlatList
         data={userData?.posts}
         keyExtractor={(item) => item.id.toString()}
-        numColumns={3} // Aspect de Instagram Grid
+        numColumns={3}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.gridImageContainer}>
+          <TouchableOpacity
+            style={styles.gridImageContainer}
+            activeOpacity={0.85}
+            onPress={() => router.push({
+              pathname: '/RandomPicture',
+              params: {
+                userId: userData.id.toString(),
+                postId: item.id.toString(),
+              },
+            })}
+          >
             <Image source={{ uri: `http://${IP}:3000/${item.imageUrl}` }} style={styles.gridImage} />
           </TouchableOpacity>
         )}
@@ -154,7 +161,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginVertical: 2, 
+    marginVertical: 2,
   },
   username: {
     fontSize: 22,
@@ -172,14 +179,14 @@ const styles = StyleSheet.create({
   gridImageContainer: {
     width: '33.33%',
     aspectRatio: 1,
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: 'transparent',
   },
   gridImage: {
     width: '100%',
     aspectRatio: 1,
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 8,
   },
   emptyListText: {
     textAlign: 'center',

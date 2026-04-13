@@ -19,6 +19,10 @@ import IP from '../global_vars/IP';
 const LeaderBoradScreen = ({ users, theme }) => {
   if (!users || users.length === 0) return null;
 
+  const router = useRouter();
+
+  console.log("Leaderboard users:", users);
+
   return (
     <View style={{ padding: 15, backgroundColor: theme.background }}>
       <FlatList
@@ -29,11 +33,13 @@ const LeaderBoradScreen = ({ users, theme }) => {
         renderItem={({ item }) => (
           <View style={{ marginRight: 25, alignItems: 'center' }}>
             <View style={styles.avatarContainer}>
-              <Image
-                source={item.profilePictureUrl ? { uri: `http://${IP}:3000/${item.profilePictureUrl}` } : require('../assets/defaultProfilePicture.png')}
-                style={styles.profileTopPicture}
-              />
-              
+              <TouchableOpacity onPress={() => router.push({ pathname: '/RandomProfile', params: { userId: item.id?.toString() } })}>   
+                <Image
+                  source={item.profilePictureUrl ? { uri: `http://${IP}:3000/${item.profilePictureUrl}` } : require('../assets/defaultProfilePicture.png')}
+                  style={styles.profileTopPicture}
+                />
+              </TouchableOpacity>
+
               <View style={styles.badgeWrapper}>
                 <Image 
                   source={require('../assets/catPoints.png')} 
@@ -58,6 +64,7 @@ const LeaderBoradScreen = ({ users, theme }) => {
 
 const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId }) => {
   const router = useRouter();
+  const [catFound, setCatFound] = useState(false);
 
 
   useEffect(() => {
@@ -85,7 +92,7 @@ const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId })
       <View>
         <TouchableOpacity onPress={() => router.push({ pathname: '/RandomProfile', params: { userId: item.userId.toString() } })}>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginLeft: '2%', marginBottom: '2%', width: '70%' }}>
-
+ 
               <Image
                 source={item.user?.profilePictureUrl ? { uri: item.user.profilePictureUrl } : require('../assets/defaultProfilePicture.png')}
                 style={{ width: 40, height: 40, borderRadius: 20, marginRight: 10 }}
@@ -107,11 +114,33 @@ const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId })
 
       </View>
 
-      <Image
-        source={{ uri: `http://${IP}:3000/${item.imageUrl}` }}
-        style={styles.postImage}
-        resizeMode="cover"
-      />
+      <View>
+        <Image
+          source={{ uri: `http://${IP}:3000/${item.imageUrl}` }}
+          style={[styles.postImage]}
+          resizeMode="cover"
+        />
+        {item.sameCat && (
+          console.log("Post with same cat detected:", item.id, "Same cat:", item.sameCat),
+          catFound ? (
+            <TouchableOpacity
+              onPress={() => setCatFound(prev => !prev)}
+              activeOpacity={0.8}
+              style={[styles.sameCatBorderFound, { backgroundColor: theme.debugging }]}
+            >
+              <Text style={{ color: 'white', fontSize: 14, alignSelf: 'center', marginTop: 1 }}>
+                Same cat already posted in the area by {item.byWho || 'unknown'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => setCatFound(prev => !prev)}
+              activeOpacity={0.8}
+              style={[styles.sameCatBorder, { backgroundColor: theme.debugging }]}
+            />
+          )
+        )}
+      </View>
 
       {userId == item.userId ? (
         <View style={styles.postOptions}>
@@ -445,6 +474,26 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignSelf: 'center',
     borderRadius: 20,
+  },
+  sameCatBorder: {
+    borderRadius: 10,
+    width: '90%',
+    alignSelf: 'center',
+    height: 7,
+    marginTop: 10,
+  },
+  sameCatBorderFound: {
+    borderRadius: 10,
+    width: '90%',
+    alignSelf: 'center',
+    height: 25,
+    marginTop: 10,
+  },
+  postImageWrapper: {
+    width: '100%',
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderBottomWidth: 0,
   },
   postOptions: {
     marginLeft: '1%',

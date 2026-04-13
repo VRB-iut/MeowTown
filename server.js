@@ -61,12 +61,283 @@ const zoomTensor = (img, zoomFactor) => {
 
   return tf.tensor3d(buffer, [cropH, cropW, 3]).resizeBilinear([224, 224]).toFloat();
 };
+
+function cosineSimilarity(vecA, vecB) {
+  if (!Array.isArray(vecA) || !Array.isArray(vecB) || vecA.length !== vecB.length || vecA.length === 0) {
+    return 0;
+  }
+
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const normA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const normB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+
+  if (normA === 0 || normB === 0) {
+    return 0;
+  }
+
+  return dotProduct / (normA * normB);
+}
+
+function boundedSimilarity(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+function toRadians(value) {
+  return (value * Math.PI) / 180;
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const earthRadius = 6371000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadius * c;
+}
+
+async function extractEmbeddingFromImageBuffer(imageBuffer) {
+  if (!model) return null;
+
+  const img = imageToTensor(imageBuffer);
+  const tensor = zoomTensor(img, 0.9);
+
+  try {
+    const activation = model.infer(tensor, true);
+    const activationTensor = Array.isArray(activation) ? activation[0] : activation;
+    const flattened = activationTensor.flatten();
+    const embedding = Array.from(await flattened.data());
+
+    if (Array.isArray(activation)) {
+      activation.forEach((t) => t?.dispose?.());
+    } else {
+      activation?.dispose?.();
+    }
+    flattened.dispose();
+
+    return embedding;
+  } catch (err) {
+    console.error("Eroare extragere embedding:", err);
+    return null;
+  } finally {
+    tensor.dispose();
+  }
+}
+
+async function extractVisualSignatureFromImageBuffer(imageBuffer) {
+  const { data } = await sharp(imageBuffer)
+    .resize(32, 32, { fit: "cover" })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return Array.from(data, (value) => value / 255);
+}
+
+async function extractDHashFromImageBuffer(imageBuffer) {
+  const { data } = await sharp(imageBuffer)
+    .resize(9, 8, { fit: "fill" })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const bits = [];
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const left = data[y * 9 + x];
+      const right = data[y * 9 + x + 1];
+      bits.push(left > right ? 1 : 0);
+    }
+  }
+
+  return bits;
+}
+
+function hammingDistance(bitsA, bitsB) {
+  if (!Array.isArray(bitsA) || !Array.isArray(bitsB) || bitsA.length !== bitsB.length) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  let distance = 0;
+  for (let i = 0; i < bitsA.length; i++) {
+    if (bitsA[i] !== bitsB[i]) distance++;
+  }
+  return distance;
+}
+
+async function getPostImageBuffer(post) {
+  if (!post.imageUrl) return null;
+
+  let localPath = post.imageUrl;
+  if (localPath.startsWith("http://") || localPath.startsWith("https://")) {
+    const normalized = localPath.replace(/\\/g, "/");
+    const marker = "/uploads/";
+    const markerIndex = normalized.indexOf(marker);
+    if (markerIndex !== -1) {
+      localPath = normalized.slice(markerIndex + 1);
+    }
+  }
+
+  if (!fs.existsSync(localPath)) {
+    console.log(`[CHECK] Fișier inexistent pentru post ${post.id}: ${localPath}`);
+    return null;
+  }
+
+  return fs.readFileSync(localPath);
+}
+
+async function getOrCreatePostEmbedding(post) {
+  if (post.embedding) {
+    try {
+      const parsed = JSON.parse(post.embedding);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch {
+      console.log(`[CHECK] Embedding invalid pentru post ${post.id}, se va regenera.`);
+    }
+  }
+
+  const existingBuffer = await getPostImageBuffer(post);
+  if (!existingBuffer) {
+    return null;
+  }
+  const generatedEmbedding = await extractEmbeddingFromImageBuffer(existingBuffer);
+
+  if (!generatedEmbedding) {
+    return null;
+  }
+
+  try {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { embedding: JSON.stringify(generatedEmbedding) },
+    });
+  } catch (err) {
+    console.log(`[CHECK] Nu am putut salva embedding pentru post ${post.id}:`, err.message);
+  }
+
+  return generatedEmbedding;
+}
+
+async function detectSameCatInRadius({ lat, lon, newEmbedding, newSignature, newDHash }) {
+  let isSameCat = false;
+  let bestSimilarity = 0;
+  let bestVisualSimilarity = 0;
+  let bestHashDistance = Number.POSITIVE_INFINITY;
+  let matchedPostId = null;
+
+  if (!(newEmbedding || newSignature || newDHash) || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return { isSameCat, bestSimilarity, bestVisualSimilarity, bestHashDistance, matchedPostId };
+  }
+
+  const searchRadiusMeters = 50;
+  const prefilterRadiusMeters = 80;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const latDelta = prefilterRadiusMeters / 111320;
+  const lonDivisor = Math.max(0.2, Math.cos(toRadians(lat)));
+  const lonDelta = prefilterRadiusMeters / (111320 * lonDivisor);
+
+  const nearbyPosts = await prisma.post.findMany({
+    where: {
+      createdAt: { gte: sevenDaysAgo },
+      latitude: { gte: lat - latDelta, lte: lat + latDelta },
+      longitude: { gte: lon - lonDelta, lte: lon + lonDelta },
+    },
+    select: {
+      id: true,
+      embedding: true,
+      imageUrl: true,
+      latitude: true,
+      longitude: true,
+    },
+  });
+
+  const postsIn50m = nearbyPosts.filter((post) => {
+    const meters = distanceMeters(lat, lon, post.latitude, post.longitude);
+    return meters <= searchRadiusMeters;
+  });
+
+  const EMBEDDING_THRESHOLD = 0.75;
+  const VISUAL_THRESHOLD = 0.75;
+  const COMBINED_THRESHOLD = 0.75;
+  const DHASH_THRESHOLD = 12;
+
+  console.log(`[CHECK] Candidati in 50m: ${postsIn50m.length}`);
+
+  for (const post of postsIn50m) {
+    try {
+      const postImageBuffer = await getPostImageBuffer(post);
+      const existingEmbedding = await getOrCreatePostEmbedding(post);
+      if (!existingEmbedding || !postImageBuffer) {
+        continue;
+      }
+
+      const existingSignature = await extractVisualSignatureFromImageBuffer(postImageBuffer);
+      const existingDHash = await extractDHashFromImageBuffer(postImageBuffer);
+
+      console.log(
+        `[DEBUG] Dim embeddinguri: nou=${newEmbedding?.length || 0}, post=${post.id}, existent=${existingEmbedding.length}`
+      );
+
+      const embeddingSimilarity = boundedSimilarity(cosineSimilarity(newEmbedding, existingEmbedding));
+      const visualSimilarity = boundedSimilarity(cosineSimilarity(newSignature, existingSignature));
+      const combinedSimilarity = (embeddingSimilarity * 0.7) + (visualSimilarity * 0.3);
+      const hashDistance = hammingDistance(newDHash, existingDHash);
+
+      bestSimilarity = Math.max(bestSimilarity, embeddingSimilarity);
+      bestVisualSimilarity = Math.max(bestVisualSimilarity, visualSimilarity);
+      bestHashDistance = Math.min(bestHashDistance, hashDistance);
+
+      console.log(
+        `[CHECK] post=${post.id} emb=${(embeddingSimilarity * 100).toFixed(2)}% vis=${(visualSimilarity * 100).toFixed(2)}% comb=${(combinedSimilarity * 100).toFixed(2)}% hashDist=${hashDistance}`
+      );
+
+      const strongSignals = [
+        embeddingSimilarity >= EMBEDDING_THRESHOLD,
+        visualSimilarity >= VISUAL_THRESHOLD,
+        combinedSimilarity >= COMBINED_THRESHOLD,
+        hashDistance <= DHASH_THRESHOLD,
+      ].filter(Boolean).length;
+
+      const isMatch =
+        (embeddingSimilarity >= EMBEDDING_THRESHOLD && visualSimilarity >= VISUAL_THRESHOLD) ||
+        (embeddingSimilarity >= EMBEDDING_THRESHOLD && hashDistance <= DHASH_THRESHOLD) ||
+        (visualSimilarity >= VISUAL_THRESHOLD && hashDistance <= DHASH_THRESHOLD) ||
+        strongSignals >= 3;
+
+      if (isMatch) {
+        isSameCat = true;
+        matchedPostId = post.id;
+        console.log(
+          `[CHECK] Match pe post ${post.id}: emb=${(embeddingSimilarity * 100).toFixed(2)}% vis=${(visualSimilarity * 100).toFixed(2)}% hashDist=${hashDistance}`
+        );
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return { isSameCat, bestSimilarity, bestVisualSimilarity, bestHashDistance, matchedPostId };
+}
+
 app.post("/check", upload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "Nicio imagine primită." });
   }
 
   try {
+    const { latitude, longitude } = req.body;
+    const lat = Number.parseFloat(latitude);
+    const lon = Number.parseFloat(longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      console.log(`[CHECK] Coordonate invalide primite: lat=${latitude}, lon=${longitude}`);
+    }
+
     const imageBuffer = fs.readFileSync(req.file.path);
     const img = imageToTensor(imageBuffer);
 
@@ -85,6 +356,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
 
 
     let isCat = false;
+    let bestPredictions = [];
 
 
     console.log("--- Încep analiza imaginii cu AI ---");
@@ -92,13 +364,15 @@ app.post("/check", upload.single("file"), async (req, res) => {
       const tensor = zoomTensor(img, z);
       
       const predictions = await model.classify(tensor, 10);
+      tensor.dispose();
 
-      
-      console.log("\n--- TOP 10 DETECTATE ---");
-      console.table(predictions.map(p => ({
-        Clasa: p.className,
-        Probabilitate: (p.probability * 100).toFixed(2) + "%"
-      })));
+      bestPredictions = predictions;
+
+      const top3 = predictions.slice(0, 3).map((p) => ({
+        clasa: p.className,
+        probabilitate: `${(p.probability * 100).toFixed(2)}%`,
+      }));
+      console.log(`[CHECK][zoom=${z}] Top 3 predictii:`, top3);
 
 
       const found = predictions.some(p => catKeywords.some(kw => p.className.toLowerCase().includes(kw)));
@@ -111,19 +385,45 @@ app.post("/check", upload.single("file"), async (req, res) => {
 
     console.log("ESTE PISICĂ?", isCat ? "DA" : "NU");
 
+    if (!isCat) {
+      return res.json({ success: true, isCat: false, message: "Nu pare să fie o pisică." });
+    }
+
+    const newEmbedding = await extractEmbeddingFromImageBuffer(imageBuffer);
+    const newSignature = await extractVisualSignatureFromImageBuffer(imageBuffer);
+    const newDHash = await extractDHashFromImageBuffer(imageBuffer);
+
+    const {
+      isSameCat,
+      bestSimilarity,
+      bestVisualSimilarity,
+      bestHashDistance,
+      matchedPostId,
+    } = await detectSameCatInRadius({ lat, lon, newEmbedding, newSignature, newDHash });
+
+    if (isSameCat && matchedPostId) {
+      await prisma.$executeRawUnsafe('UPDATE "Post" SET "sameCat" = 1 WHERE id = ?', matchedPostId);
+    }
+
     res.json({
       success: true,
-      isCat: isCat,
+      isCat: true,
+      isSameCat,
+      similarityScore: Number(bestSimilarity.toFixed(4)),
+      visualSimilarityScore: Number(bestVisualSimilarity.toFixed(4)),
+      hashDistance: Number.isFinite(bestHashDistance) ? bestHashDistance : null,
+      matchedPostId,
+      topPrediction: bestPredictions[0]?.className || null,
+      embedding: newEmbedding ? JSON.stringify(newEmbedding) : null,
     });
 
   } catch (error) {
     console.error("Eroare AI:", error);
-
+    res.status(500).json({ success: false, error: "Eroare AI" });
+  } finally {
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-
-    res.status(500).json({ success: false, error: "Eroare AI" });
   }
 });
 
@@ -208,11 +508,20 @@ app.use("/uploads", express.static("uploads"));
 
 app.post("/post", upload.single("file"), async (req, res) => {
   try {
-    const { userId, latitude, longitude } = req.body;
+    const { userId, latitude, longitude, embedding } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Fișierul lipsește" });
     }
+
+    const lat = Number.parseFloat(latitude);
+    const lon = Number.parseFloat(longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return res.status(400).json({ success: false, message: "Coordonate invalide." });
+    }
+
+    const originalBuffer = fs.readFileSync(req.file.path);
 
     const compressedFilename = `compressed_${req.file.filename}.jpg`;
     const thumbnailFilename = `thumb_${req.file.filename}.jpg`;
@@ -230,6 +539,52 @@ app.post("/post", upload.single("file"), async (req, res) => {
       .jpeg({ quality: 60 })
       .toFile(thumbnailPath);
 
+    let embeddingToSave = null;
+    if (typeof embedding === "string" && embedding.trim().length > 0) {
+      embeddingToSave = embedding;
+    } else {
+      const extractedEmbedding = await extractEmbeddingFromImageBuffer(originalBuffer);
+      embeddingToSave = extractedEmbedding ? JSON.stringify(extractedEmbedding) : null;
+    }
+
+    let parsedEmbedding = null;
+    if (embeddingToSave) {
+      try {
+        parsedEmbedding = JSON.parse(embeddingToSave);
+      } catch {
+        parsedEmbedding = null;
+      }
+    }
+
+    const newSignature = await extractVisualSignatureFromImageBuffer(originalBuffer);
+    const newDHash = await extractDHashFromImageBuffer(originalBuffer);
+    const duplicateCheck = await detectSameCatInRadius({
+      lat,
+      lon,
+      newEmbedding: parsedEmbedding,
+      newSignature,
+      newDHash,
+    });
+
+    if (duplicateCheck.isSameCat && duplicateCheck.matchedPostId) {
+      await prisma.$executeRawUnsafe('UPDATE "Post" SET "sameCat" = 1 WHERE id = ?', duplicateCheck.matchedPostId);
+    }
+
+    let byWho = null;
+    if (duplicateCheck.isSameCat && duplicateCheck.matchedPostId) {
+      const matchedPost = await prisma.post.findUnique({
+        where: { id: duplicateCheck.matchedPostId },
+        select: {
+          byWho: true,
+          user: {
+            select: { username: true },
+          },
+        },
+      });
+
+      byWho = matchedPost?.byWho || matchedPost?.user?.username || null;
+    }
+
     fs.unlinkSync(req.file.path);
 
     const imageUrl = compressedPath;
@@ -239,22 +594,27 @@ app.post("/post", upload.single("file"), async (req, res) => {
       data: {
         imageUrl,
         thumbnailUrl,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
+        embedding: embeddingToSave,
+        latitude: lat,
+        longitude: lon,
+        sameCat: duplicateCheck.isSameCat,
+        byWho,
         user: {
           connect: { id: parseInt(userId) },
-        }
+        },
       },
     });
 
-    await prisma.user.update({
-      where: { id: parseInt(userId) },
-      data: {
-        catPoints: {
-          increment: 1,
+    if (!duplicateCheck.isSameCat) {
+      await prisma.user.update({
+        where: { id: parseInt(userId) },
+        data: {
+          catPoints: {
+            increment: 1,
+          }
         }
-      }
-    });
+      });
+    }
 
     res.json({ success: true, post: newPost });
 

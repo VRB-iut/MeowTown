@@ -1,5 +1,3 @@
-// Șterge useState și handleToggleDarkMode de aici!
-
 const COLOR = {
   light: {
     background: '#f8f8f8',
@@ -28,7 +26,5 @@ const COLOR = {
     debugging: '#780116',
   }
 };
-
-//selected maybe #E0FF4F
 
 export default COLOR;

@@ -100,7 +100,6 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Log In container */}
       {logIn ? (
         <View style={styles.containerLogIn}>
           <Text style={styles.logInText}>WELCOME</Text>
@@ -171,7 +170,6 @@ export default function LoginScreen() {
         </View>
       )}
 
-      {/* Sign Up container */}
       {logIn === true ? (
         <View style={styles.containerSignUp}>
           <Text style={{ color: "#afafaf" }}>Don't have an account?</Text>

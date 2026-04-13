@@ -8,7 +8,6 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          // Aceasta este linia magică:
           contentStyle: { backgroundColor: '#000' }, 
           headerShown: false, 
         }}

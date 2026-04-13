@@ -22,8 +22,11 @@ model User {
 
 model Post {
   id        Int       @id @default(autoincrement())
+  sameCat   Boolean   @default(false)
+  byWho     String?
   imageUrl  String
   thumbnailUrl String
+  embedding String?
   userId    Int
   latitude  Float
   longitude Float
