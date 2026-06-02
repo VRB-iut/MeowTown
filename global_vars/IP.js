@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 
-const FALLBACK_IP = "192.168.1.6";
+const FALLBACK_IP = "10.106.124.181";
 
 const hostFromExpo =
 	Constants.expoConfig?.hostUri ||

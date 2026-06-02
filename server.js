@@ -401,10 +401,6 @@ app.post("/check", upload.single("file"), async (req, res) => {
       matchedPostId,
     } = await detectSameCatInRadius({ lat, lon, newEmbedding, newSignature, newDHash });
 
-    if (isSameCat && matchedPostId) {
-      await prisma.$executeRawUnsafe('UPDATE "Post" SET "sameCat" = 1 WHERE id = ?', matchedPostId);
-    }
-
     res.json({
       success: true,
       isCat: true,
@@ -565,10 +561,6 @@ app.post("/post", upload.single("file"), async (req, res) => {
       newSignature,
       newDHash,
     });
-
-    if (duplicateCheck.isSameCat && duplicateCheck.matchedPostId) {
-      await prisma.$executeRawUnsafe('UPDATE "Post" SET "sameCat" = 1 WHERE id = ?', duplicateCheck.matchedPostId);
-    }
 
     let byWho = null;
     if (duplicateCheck.isSameCat && duplicateCheck.matchedPostId) {
@@ -775,6 +767,39 @@ app.post('/like', async (req, res) => {
   } catch (err) {
     console.log("Eroare server like:", err);
     res.status(500).json({ success: false });
+  }
+});
+
+app.get('/search', async (req, res) => {
+  try {
+    const searchTerm = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    if (!searchTerm) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        username: {
+          contains: searchTerm,
+        },
+      },
+      select: {
+        id: true,
+        username: true,
+        profilePictureUrl: true,
+        catPoints: true,
+        dogPoints: true,
+      },
+      orderBy: { username: 'asc' },
+      take: 20,
+    });
+
+    return res.json({ success: true, users });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

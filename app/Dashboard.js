@@ -10,6 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import TakePicture from './TakePicture';
 import ProfileScreen from './Profile';
+import SearchScreen from './SearchScreen';
 import CustomLoading from './CustomLoading';
 
 import COLOR from '../global_vars/COLOR';
@@ -417,11 +418,11 @@ export default function Dashboard() {
       <Tab.Screen 
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="switch" color={color} size={26} />
+            <Ionicons name="search-sharp" color={color} size={26} />
           ),
           tabBarShowLabel: false,
         }}
-        name="Altceva">{() => <SettingsScreen theme={theme} />}</Tab.Screen>
+        name="Search">{() => <SearchScreen theme={theme} />}</Tab.Screen>
 
       <Tab.Screen 
         options={{
