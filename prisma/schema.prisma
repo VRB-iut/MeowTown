@@ -12,6 +12,7 @@ model User {
   password              String
   profilePictureUrl     String? 
   darkMode              Boolean   @default(false)
+  pureBlack             Boolean   @default(false)
   backButtonPossition   Boolean   @default(false)
   catPoints             Int       @default(0)
   dogPoints             Int       @default(0)

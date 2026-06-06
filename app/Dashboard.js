@@ -1,4 +1,4 @@
-import { FlatList, StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
+import { FlatList, StyleSheet, Text, View, Image, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState } from 'react';
@@ -13,7 +13,7 @@ import ProfileScreen from './Profile';
 import SearchScreen from './SearchScreen';
 import CustomLoading from './CustomLoading';
 
-import COLOR from '../global_vars/COLOR';
+import COLOR, { applyPureBlack } from '../global_vars/COLOR';
 import IP from '../global_vars/IP';
 
 
@@ -66,6 +66,8 @@ const LeaderBoradScreen = ({ users, theme }) => {
 const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId }) => {
   const router = useRouter();
   const [catFound, setCatFound] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
 
   useEffect(() => {
@@ -88,32 +90,86 @@ const PostItem = ({ item, handleLike, addressCache, getCountry, theme, userId })
     return `${diffInDays}d ago`;
   };
 
+  const openMenu = (event) => {
+    const { width, height } = Dimensions.get('window');
+    const menuWidth = 150;
+    const menuHeight = 62;
+    const padding = 8;
+    const x = Math.min(event.nativeEvent.pageX, width - menuWidth - padding);
+    const y = Math.min(event.nativeEvent.pageY, height - menuHeight - padding);
+
+    setMenuPosition({ x: Math.max(padding, x), y: Math.max(padding, y) });
+    setMenuVisible(true);
+  };
+
   return (
     <View style={[styles.postCard, { backgroundColor: theme.background }]}>
       <View>
-        <TouchableOpacity onPress={() => router.push({ pathname: '/RandomProfile', params: { userId: item.userId.toString() } })}>
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginLeft: '2%', marginBottom: '2%', width: '70%' }}>
+        <View style={styles.postHeader}>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/RandomProfile', params: { userId: item.userId.toString() } })}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center' }}>
  
               <Image
                 source={item.user?.profilePictureUrl ? { uri: item.user.profilePictureUrl } : require('../assets/defaultProfilePicture.png')}
                 style={{ width: 40, height: 40, borderRadius: 20, marginRight: 10 }}
               />
 
-            <View style={{ flexDirection: 'column', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <Text style={[styles.username, { color: theme.text }]}>
-              {item.user?.username || "Loading..."}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="location-outline" color={theme.gray} />
-              <Text style={{ color: theme.gray, fontSize: 12 }}>
-                {addressCache[item.id] || "Loading location..."}
-              </Text>
+              <View style={{ flexDirection: 'column', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <Text style={[styles.username, { color: theme.text }]}>
+                  {item.user?.username || "Loading..."}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="location-outline" color={theme.gray} />
+                  <Text style={{ color: theme.gray, fontSize: 12 }}>
+                    {addressCache[item.id] || "Loading location..."}
+                  </Text>
+                </View>
+              </View>
             </View>
-            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.postMenuButton, { borderColor: theme.primary }]}
+            onPress={openMenu}
+          >
+            <Ionicons name="ellipsis-vertical" size={16} color={theme.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Modal
+        transparent
+        visible={menuVisible}
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.menuOverlay}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View
+            style={[
+              styles.menuContent,
+              {
+                backgroundColor: theme.background,
+                left: menuPosition.x,
+                top: menuPosition.y,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                console.log('Report post:', item.id);
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: 'red' }]}>Fake Cat</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
-
-      </View>
+      </Modal>
 
       <View>
         <Image
@@ -340,8 +396,13 @@ export default function Dashboard() {
   const [userId, setUserId] = useState(null);
   const [isValidating, setIsValidating] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [pureBlack, setPureBlack] = useState(false);
 
-  const theme = darkMode ? COLOR.dark : COLOR.light;
+  const effectiveTheme = darkMode
+    ? (pureBlack ? { ...COLOR.dark, background: '#000000', tabBar: '#000000' } : COLOR.dark)
+    : COLOR.light;
+
+  const theme = effectiveTheme;
 
   const handleLogout = useCallback(async () => {
     await AsyncStorage.removeItem("userId");
@@ -368,6 +429,8 @@ export default function Dashboard() {
       if (data && data.success && data.user) {
         setUserId(id);
         setDarkMode(!!data.user.darkMode);
+        setPureBlack(!!data.user.pureBlack);
+        applyPureBlack(!!data.user.pureBlack);
         setIsValidating(false);
       } else {
         await handleLogout();
@@ -465,6 +528,49 @@ const styles = StyleSheet.create({
   },
   postCard: {
     width: '100%',
+  },
+  postHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginHorizontal: '2%',
+    marginBottom: '2%',
+    width: '96%',
+  },
+  postMenuButton: {
+    marginTop: 5,
+    width: 30,
+    height: 30,
+    top: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuOverlay: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 90,
+    paddingRight: 14,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  menuContent: {
+    position: 'absolute',
+    minWidth: 140,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: '400',
   },
   username: {
     fontWeight: 'bold',

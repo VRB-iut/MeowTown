@@ -27,4 +27,27 @@ const COLOR = {
   }
 };
 
+function applyPureBlack(enable = false) {
+  if (enable) {
+    // Override both themes to use pure black background and white text
+    COLOR.dark.background = '#000000';
+    COLOR.dark.tabBar = '#000000';
+    COLOR.dark.text = '#ffffff';
+
+    COLOR.light.background = '#000000';
+    COLOR.light.tabBar = '#000000';
+    COLOR.light.text = '#ffffff';
+  } else {
+    // Restore defaults
+    COLOR.light.background = '#f8f8f8';
+    COLOR.light.text = '#0e0e0e';
+    COLOR.light.tabBar = '#ffffff';
+
+    COLOR.dark.background = '#212121';
+    COLOR.dark.text = '#f8f8f8';
+    COLOR.dark.tabBar = '#101010';
+  }
+}
+
+export { applyPureBlack };
 export default COLOR;

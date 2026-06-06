@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic", 
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#000000",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -30,6 +30,12 @@
     "plugins": [
       "expo-asset",
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f6e996a4-92cb-475b-871d-20e2c2c2659a"
+      }
+    }
   }
 }

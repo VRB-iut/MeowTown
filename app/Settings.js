@@ -8,7 +8,7 @@ import IonIcons from '@expo/vector-icons/Ionicons';
 import BackButtonPossition from './backButton';
 import CustomLoading from './CustomLoading';
 
-import COLOR from '../global_vars/COLOR';
+import COLOR, { applyPureBlack } from '../global_vars/COLOR';
 import IP from '../global_vars/IP';
 
 
@@ -17,6 +17,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [darkModePressed, setDarkModePressed] = React.useState(true);
   const [backButtonPossition, setBackButtonPossition] = React.useState(false);
+  const [pureBlackPressed, setPureBlackPressed] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
 
   const theme = darkModePressed ? COLOR.dark : COLOR.light;
@@ -64,12 +65,33 @@ export default function SettingsScreen() {
     }
   };
 
+  const getPureBlackStatus = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) return false;
+      const response = await fetch(`http://${IP}:3000/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await response.json();
+      return !!data.user?.pureBlack;
+    } catch (error) {
+      console.error('Error fetching pure black status:', error);
+      return false;
+    }
+  };
+
    React.useEffect(() => {
     const fetchSettings = async () => {
       const isDarkMode = await getDarkModeStatus();
       const backButtonPos = await getBackButtonPosition();
+        const pureBlack = await getPureBlackStatus();
       setDarkModePressed(isDarkMode);
       setBackButtonPossition(backButtonPos);
+        setPureBlackPressed(pureBlack);
       setLoading(false);
     };
     fetchSettings();
@@ -114,6 +136,25 @@ export default function SettingsScreen() {
     }
   }
 
+  const handleTogglePureBlack = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) return;
+      const response = await fetch(`http://${IP}:3000/users/pure-black`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await response.json();
+      if (data?.success) {
+        setPureBlackPressed(!!data.pureBlack);
+        applyPureBlack(!!data.pureBlack);
+      }
+    } catch (error) {
+      console.error('Error toggling pure black:', error);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -135,6 +176,17 @@ export default function SettingsScreen() {
 
         <View style={[styles.darkModeButton, { borderColor: theme.primary }]}>
           <View style={[darkModePressed && styles.darkModeButtonActive, {backgroundColor: theme.primary,}]} />
+        </View>
+      </TouchableOpacity>
+
+
+      <View style={{ borderBottomWidth: 2.5, borderBottomColor: theme.primaryDark, width: '95%', margin: '2%', alignSelf: 'center' }} />
+
+      <TouchableOpacity  style={styles.darkModeButtonContainer} onPress={handleTogglePureBlack} >
+        <Text style={[styles.darkModeText, { color: theme.primary }]}>Pure Black</Text>
+
+        <View style={[styles.darkModeButton, { borderColor: theme.primary }]}>
+          <View style={[pureBlackPressed && styles.darkModeButtonActive, {backgroundColor: pureBlackPressed ? theme.primary : 'transparent',}]} />
         </View>
       </TouchableOpacity>
 

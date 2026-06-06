@@ -900,6 +900,32 @@ app.put('/users/back-button', async (req, res) => {
   }
 });
 
+app.put('/users/pure-black', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ success: false, message: "ID lipsă" });
+
+    const uId = parseInt(userId);
+
+    const user = await prisma.user.findUnique({
+      where: { id: uId },
+      select: { pureBlack: true }
+    });
+
+    if (!user) return res.status(404).json({ success: false, message: "User negăsit" });
+
+    const updatedUser = await prisma.user.update({
+      where: { id: uId },
+      data: { pureBlack: !user.pureBlack }
+    });
+
+    res.json({ success: true, pureBlack: updatedUser.pureBlack });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/leaderboard', async (req, res) => {
   try {
     const topUsers = await prisma.user.findMany({
